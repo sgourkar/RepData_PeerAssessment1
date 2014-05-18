@@ -1,0 +1,164 @@
+Reproducible Research - Peer Assessment 1
+========================================================
+
+Load the 'Activity Monitoring' data.
+```{r loadData, echo = TRUE}
+activity <- read.csv("activity.csv")
+```
+
+** What is the mean total number of steps taken each day?**
+
+1. Make a histogram of the total number of steps taken each day.
+```{r histogramSteps, echo = TRUE}
+totalSteps <- tapply(activity$steps, INDEX = activity$date, FUN = sum)
+uniqueDates <- unique(activity$date)
+dfSteps <- data.frame(dates = as.factor(uniqueDates), 
+                      steps = as.integer(totalSteps))
+library(ggplot2)
+totalStepsHist <- qplot(dates, data = dfSteps, weight = totalSteps, geom = "histogram") + 
+        ylab("Total Number of Steps")
+totalStepsHist + theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+```
+
+2. Calculate and report the __mean__ and __median__ total number of steps taken 
+per day.
+```{r meanMedianSteps, echo = TRUE}
+meanDaySteps <- mean(totalSteps, na.rm = TRUE)
+meanDaySteps
+
+medianDaySteps <- median(totalSteps, na.rm = TRUE)
+medianDaySteps
+```
+
+**What is the average daily activity pattern?**
+
+1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis)
+and the average number of steps taken, averaged across all days (y-axis).
+```{r timeSeriesPlot, echo = TRUE}
+uniqueIntervals <- unique(activity$interval)
+dfIntervals <- data.frame(interval = as.integer(), meanSteps = as.numeric())
+
+for (i in uniqueIntervals) {
+        intervalSubset <- activity[activity$interval == i,]
+        intervalMeanSteps <- mean(intervalSubset$steps, na.rm = TRUE)
+        dfIntervals <- rbind(dfIntervals, c(i, intervalMeanSteps))
+}
+
+names(dfIntervals) <- c("interval", "meanNumSteps")
+timeSeriesPlot <- ggplot(dfIntervals, aes(interval, meanNumSteps))
+timeSeriesPlot + geom_path() + xlab("Interval (min)") + ylab("Mean Number of Steps")
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, 
+contains the maximum number of steps?
+```{r maxStepsInterval, echo = TRUE}
+dfIntervals[which.max(dfIntervals[,2]),]
+```
+Interval '835' contains the maximum number of steps.
+
+**Imputing missing values**
+
+1. Calculate and report the total number of missing values in the dataset 
+(i.e. the total number of rows with NAs)
+```{r numNAs, echo = TRUE}
+sum(is.na(activity$steps))
+```
+
+2. Devise a strategy for filling in all of the missing values in the dataset. 
+The strategy does not need to be sophisticated. For example, you could use the 
+mean/median for that day, or the mean for that 5-minute interval, etc.
+
+3. Create a new dataset that is equal to the original dataset but with the 
+missing data filled in.
+
+```{r replaceNA, echo = TRUE}
+activity2 <- activity
+activityRows <- as.integer(row.names(activity2))
+for (i in activityRows) {
+        if (anyNA(activity2[i,]) == TRUE) {
+                currentInterval <- activity2[i,3]
+                replaceValue <- dfIntervals[dfIntervals$interval == currentInterval, 2]
+                activity2[i,1] <- replaceValue
+        }
+}
+```
+Each NA value for the 'steps' variable in the 'activity2' dataset was replaced 
+by the mean number of steps taken for that respective interval.
+
+4. Make a histogram of the total number of steps taken each day and Calculate 
+and report the mean and median total number of steps taken per day. Do these 
+values differ from the estimates from the first part of the assignment? What is 
+the impact of imputing missing data on the estimates of the total daily number 
+of steps?
+```{r newHistogram, echo = TRUE}
+totalSteps2 <- tapply(activity2$steps, INDEX = activity$date, FUN = sum)
+dfSteps2 <- data.frame(dates = as.factor(uniqueDates), steps = as.integer(totalSteps2))
+totalStepsHist <- qplot(dates, data = dfSteps2, weight = totalSteps, geom = "histogram") + 
+        ylab("Total Number of Steps")
+totalStepsHist + theme(axis.ticks = element_blank(), axis.text.x = element_blank())
+meanDaySteps2 <- mean(totalSteps2, na.rm = TRUE)
+meanDaySteps2
+medianDaySteps2 <- median(totalSteps2, na.rm = TRUE)
+medianDaySteps2
+```
+
+**Are there differences in activity patterns between weekdays and weekends?**
+
+1. Create a new factor variable in the dataset with two levels – “weekday” and 
+“weekend” indicating whether a given date is a weekday or weekend day.
+```{r weekDayEnd, echo = TRUE}
+activity2$date <- as.POSIXlt.date(activity2$date)
+activity2$weekday <- weekdays(activity2$date)
+
+weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+activity2$dayEnd <- NULL
+for (i in activityRows) {
+        if (activity2[i,4] %in% weekdays) {
+                activity2[i,5] <- "weekday"
+        } else {
+                activity2[i,5] <- "weekend"
+        }
+}
+```
+
+2. Make a panel plot containing a time series plot (i.e. type = "l") of the 
+5-minute interval (x-axis) and the average number of steps taken, averaged 
+across all weekday days or weekend days (y-axis). 
+```{r panelPlot, echo = TRUE}
+
+##timeSeriesPlotweekdays <- ggplot(dfIntervals, aes(interval, meanNumSteps))
+##timeSeriesPlot + geom_path() + xlab("Interval (min)") + ylab("Mean Number of Steps")
+activityWeekdays <- subset(activity2, activity2$V5 == "weekday")
+activityWeekends <- subset(activity2, activity2$V5 == "weekend")
+
+weekdayIntervals <- data.frame(interval = as.integer(), meanSteps = as.numeric())
+for (i in uniqueIntervals) {
+        intervalSubset <- activityWeekdays[activityWeekdays$interval == i,]
+        intervalMeanSteps <- mean(intervalSubset$steps, na.rm = TRUE)
+        weekdayIntervals <- rbind(weekdayIntervals, c(i, intervalMeanSteps))
+}
+names(weekdayIntervals) <- c("interval", "meanNumSteps")
+
+weekendIntervals <- data.frame(interval = as.integer(), meanSteps = as.numeric())
+for (i in uniqueIntervals) {
+        intervalSubset <- activityWeekends[activityWeekends$interval == i,]
+        intervalMeanSteps <- mean(intervalSubset$steps, na.rm = TRUE)
+        weekendIntervals <- rbind(weekendIntervals, c(i, intervalMeanSteps))
+}
+names(weekendIntervals) <- c("interval", "meanNumSteps")
+
+timeSeriesPlotWeekdays <- ggplot(weekdayIntervals, aes(interval, meanNumSteps)) +
+        geom_path() + xlab("Interval (min)") + ylab("Mean Number of Steps") +
+        ggtitle("weekday")
+
+timeSeriesPlotWeekends <- ggplot(weekendIntervals, aes(interval, meanNumSteps)) +
+        geom_path() + xlab("Interval (min)") + ylab("Mean Number of Steps") +
+        ggtitle("weekend")
+
+library(grid)
+library(gridExtra)
+grid.arrange(timeSeriesPlotWeekdays, timeSeriesPlotWeekends, ncol = 1)
+
+
+```
+
